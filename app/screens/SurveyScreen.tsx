@@ -1,8 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Animated, SafeAreaView, KeyboardAvoidingView, Platform } from 'react-native';
 import { RadioButton, ProgressBar } from 'react-native-paper';
+import { useRouter } from 'expo-router';
 
 const SurveyScreen = () => {
+  const router = useRouter();
+
   const questions = [
     { question: "What type of home do you live in?", options: ["Apartment", "Detached house", "Villa", "Dormitory/Rented room", "Other"] },
     { question: "What is your primary smart home need?", options: ["Security", "Energy saving", "Comfort and automation", "Entertainment and multimedia", "Other"] },
@@ -43,19 +46,17 @@ const SurveyScreen = () => {
   };
 
   const handleSubmit = () => {
-    console.log('Survey Submitted:', selectedValues);
+    router.push('/screens/ResultsScreen');
   };
 
   return (
     <SafeAreaView style={styles.container}>
       <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        {/* Progress Bar */}
         <View style={styles.header}>
           <Text style={styles.progressText}>{`Progress: ${(progress * 100).toFixed(0)}%`}</Text>
           <ProgressBar progress={progress} color="#8A82E2" style={styles.progressBar} />
         </View>
 
-        {/* Questions */}
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
           {questions.map((q, index) => (
             <Animated.View key={index} style={[styles.questionContainer, { transform: [{ scale: animations[index] }] }]}>
@@ -69,7 +70,6 @@ const SurveyScreen = () => {
           ))}
         </ScrollView>
 
-        {/* Submit Button */}
         <View style={styles.submitButtonContainer}>
           <TouchableOpacity style={styles.submitButton} onPress={handleSubmit}>
             <Text style={styles.submitButtonText}>Submit Survey</Text>
