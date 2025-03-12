@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Animated, SafeAreaView, KeyboardAvoidingView, Platform } from 'react-native';
-import { RadioButton } from 'react-native-paper';
+import { RadioButton, ProgressBar } from 'react-native-paper';
 
 const SurveyScreen = () => {
   const questions = [
@@ -21,70 +21,55 @@ const SurveyScreen = () => {
     { question: "Where do you usually get information about smart home products?", options: ["Online reviews and ratings", "YouTube videos", "Recommendations from friends/family", "In-store advisors", "Other"] }
   ];
   
+
   const [selectedValues, setSelectedValues] = useState<{ [key: number]: string }>({});
-  const [animations] = useState(questions.map(() => new Animated.Value(1)));
+  const animations = useRef(questions.map(() => new Animated.Value(1))).current;
+  const [progress, setProgress] = useState(0);
+  const animatedProgress = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const answered = Object.values(selectedValues).filter(Boolean).length;
+    const calculatedProgress = answered / questions.length;
+    Animated.timing(animatedProgress, { toValue: calculatedProgress, duration: 500, useNativeDriver: false }).start();
+  }, [selectedValues]);
+
+  useEffect(() => {
+    const listener = animatedProgress.addListener(({ value }) => setProgress(value));
+    return () => animatedProgress.removeListener(listener);
+  }, []);
 
   const handleOptionSelect = (questionIndex: number, option: string) => {
     setSelectedValues(prev => ({ ...prev, [questionIndex]: option }));
-
-    Animated.sequence([
-      Animated.timing(animations[questionIndex], { toValue: 1.05, duration: 150, useNativeDriver: true }),
-      Animated.timing(animations[questionIndex], { toValue: 1, duration: 150, useNativeDriver: true })
-    ]).start();
   };
 
   const handleSubmit = () => {
     console.log('Survey Submitted:', selectedValues);
   };
 
-  const progress = Object.keys(selectedValues).length / questions.length;
-
   return (
     <SafeAreaView style={styles.container}>
-      <KeyboardAvoidingView
-        style={styles.container}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
+      <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         {/* Progress Bar */}
         <View style={styles.header}>
-          <Text style={styles.progressText}>{`Progress: ${Math.round(progress * 100)}%`}</Text>
-          <View style={styles.progressBarBackground}>
-            <View style={[styles.progressBarFill, { width: `${progress * 100}%` }]} />
-          </View>
+          <Text style={styles.progressText}>{`Progress: ${(progress * 100).toFixed(0)}%`}</Text>
+          <ProgressBar progress={progress} color="#8A82E2" style={styles.progressBar} />
         </View>
 
         {/* Questions */}
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
           {questions.map((q, index) => (
-            <Animated.View
-              key={index}
-              style={[
-                styles.questionContainer,
-                { transform: [{ scale: animations[index] }] }
-              ]}
-            >
+            <Animated.View key={index} style={[styles.questionContainer, { transform: [{ scale: animations[index] }] }]}>
               <Text style={styles.questionText}>{`${index + 1}. ${q.question}`}</Text>
-              <RadioButton.Group
-                onValueChange={(newValue) => handleOptionSelect(index, newValue)}
-                value={selectedValues[index]}
-              >
+              <RadioButton.Group onValueChange={(newValue) => handleOptionSelect(index, newValue)} value={selectedValues[index]}>
                 {q.options.map((option, idx) => (
-                  <RadioButton.Item
-                    key={idx}
-                    label={option}
-                    value={option}
-                    labelStyle={styles.optionText}
-                    color="#8A82E2"
-                    uncheckedColor="#555555"
-                    mode="android"
-                  />
+                  <RadioButton.Item key={idx} label={option} value={option} labelStyle={styles.optionText} color="#8A82E2" uncheckedColor="#555555" mode="android" />
                 ))}
               </RadioButton.Group>
             </Animated.View>
           ))}
         </ScrollView>
 
-        {/* Fixed Submit Button */}
+        {/* Submit Button */}
         <View style={styles.submitButtonContainer}>
           <TouchableOpacity style={styles.submitButton} onPress={handleSubmit}>
             <Text style={styles.submitButtonText}>Submit Survey</Text>
@@ -109,31 +94,27 @@ const styles = StyleSheet.create({
     color: '#E1E6F9',
     marginBottom: 5,
   },
-  progressBarBackground: {
+  progressBar: {
     height: 8,
-    backgroundColor: '#1A1F3D',
+    marginHorizontal: 20,
     borderRadius: 5,
-  },
-  progressBarFill: {
-    height: 8,
-    backgroundColor: '#8A82E2',
-    borderRadius: 5,
+    backgroundColor: '#3A437E',
   },
   scrollContent: {
     paddingHorizontal: 20,
     paddingTop: 10,
-    paddingBottom: 200, // More space at the bottom so nothing is squished
-},
+    paddingBottom: 100,
+  },
   questionContainer: {
     marginBottom: 20,
     backgroundColor: '#1A1F3D',
     padding: 15,
     borderRadius: 15,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 5,
+    shadowColor: '#8A82E2',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.9,
+    shadowRadius: 10,
+    elevation: 10,
   },
   questionText: {
     fontSize: 18,
@@ -147,14 +128,18 @@ const styles = StyleSheet.create({
   },
   submitButtonContainer: {
     padding: 20,
-    paddingBottom: 70, // Increase this to lift it higher above the tab bar
     backgroundColor: '#0A0F24',
-},
+  },
   submitButton: {
-    backgroundColor: '#8A82E2',
+    backgroundColor: '#FF007F',
     paddingVertical: 15,
-    borderRadius: 10,
+    borderRadius: 15,
     alignItems: 'center',
+    shadowColor: '#FF007F',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.7,
+    shadowRadius: 10,
+    elevation: 10,
   },
   submitButtonText: {
     color: '#FFFFFF',
