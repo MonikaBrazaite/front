@@ -8,7 +8,7 @@ export default function IntroScreen() {
     <View style={styles.container}>
       <Text style={styles.title}>Welcome to Smart Home Survey</Text>
       <Text style={styles.subtitle}>Take a quick survey to personalize your smart home experience.</Text>
-      <TouchableOpacity style={styles.button} onPress={() => router.push('/screens/SurveyScreen')}>
+      <TouchableOpacity style={styles.button} onPress={() => router.push('/SurveyScreen')}>
         <Text style={styles.buttonText}>Start Survey</Text>
       </TouchableOpacity>
     </View>
@@ -49,3 +49,4 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
 });
+

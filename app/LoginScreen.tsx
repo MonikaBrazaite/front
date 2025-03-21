@@ -2,28 +2,22 @@ import React, { useState } from "react";
 import { View, Text, TextInput, TouchableOpacity, StyleSheet } from "react-native";
 import { useRouter } from "expo-router";
 
-const SignupScreen = () => {
+const LoginScreen = () => {
   const router = useRouter();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
 
-  const handleSignup = () => {
-    if (!username || !password || !confirmPassword) {
-      alert("⚠ Please fill all fields.");
-      return;
+  const handleLogin = () => {
+    if (username && password) {
+      router.push("/HomeScreen"); // Redirect after login
+    } else {
+      alert("⚠ Please enter your credentials.");
     }
-    if (password !== confirmPassword) {
-      alert("⚠ Passwords do not match.");
-      return;
-    }
-    alert("✅ Account created successfully!");
-    router.push("/screens/LoginScreen");
   };
 
   return (
     <View style={styles.container}>
-      <Text style={styles.heading}>Sign Up</Text>
+      <Text style={styles.heading}>Login</Text>
 
       <TextInput
         style={styles.input}
@@ -42,21 +36,12 @@ const SignupScreen = () => {
         secureTextEntry
       />
 
-      <TextInput
-        style={styles.input}
-        placeholder="Confirm Password"
-        placeholderTextColor="#AEB4E8"
-        value={confirmPassword}
-        onChangeText={setConfirmPassword}
-        secureTextEntry
-      />
-
-      <TouchableOpacity style={styles.signupButton} onPress={handleSignup}>
-        <Text style={styles.signupButtonText}>Create Account</Text>
+      <TouchableOpacity style={styles.loginButton} onPress={handleLogin}>
+        <Text style={styles.loginButtonText}>Login</Text>
       </TouchableOpacity>
 
-      <TouchableOpacity onPress={() => router.push("/screens/LoginScreen")}>
-        <Text style={styles.loginText}>Already have an account? Log In</Text>
+      <TouchableOpacity onPress={() => router.push("/SignupScreen")}> 
+        <Text style={styles.signupText}>Don't have an account? Sign Up</Text>
       </TouchableOpacity>
     </View>
   );
@@ -84,19 +69,19 @@ const styles = StyleSheet.create({
     marginBottom: 15,
     borderRadius: 10,
   },
-  signupButton: {
-    backgroundColor: "#FF007F",
+  loginButton: {
+    backgroundColor: "#8A82E2",
     padding: 15,
     borderRadius: 15,
     alignItems: "center",
     marginBottom: 15,
   },
-  signupButtonText: {
+  loginButtonText: {
     color: "#fff",
     fontSize: 18,
     fontWeight: "bold",
   },
-  loginText: {
+  signupText: {
     color: "#8A82E2",
     fontSize: 16,
     marginTop: 10,
@@ -104,4 +89,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default SignupScreen;
+export default LoginScreen;

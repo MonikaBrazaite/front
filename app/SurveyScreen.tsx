@@ -46,7 +46,7 @@ const SurveyScreen = () => {
   };
 
   const handleSubmit = () => {
-    router.push('/screens/ResultsScreen');
+    router.push('/ResultsScreen');
   };
 
   return (
