@@ -1,16 +1,17 @@
-import { Stack } from "expo-router";
+import { Stack } from 'expo-router';
 
 export default function Layout() {
   return (
-    <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="/index" />
-      <Stack.Screen name="/FavouritesScreen" />
-      <Stack.Screen name="/HomeScreen" />
-      <Stack.Screen name="/SurveyScreen" />
-      <Stack.Screen name="/ResultsScreen" />
-      <Stack.Screen name="/ReviewsScreen" />
-      <Stack.Screen name="/PDFPreviewScreen" />
-
+    <Stack initialRouteName="SignupScreen">
+      <Stack.Screen name="index" options={{ headerShown: false }} />
+      <Stack.Screen name="SignupScreen" options={{ headerShown: false }} />
+      <Stack.Screen name="LoginScreen" options={{ headerShown: false }} />
+      <Stack.Screen name="HomeScreen" options={{ headerShown: false }} />
+      <Stack.Screen name="SurveyScreen" options={{ headerShown: false }} />
+      <Stack.Screen name="ResultsScreen" options={{ headerShown: false }} />
+      <Stack.Screen name="FavouritesScreen" options={{ headerShown: false }} />
+      <Stack.Screen name="ReviewsScreen" options={{ headerShown: false }} />
+      <Stack.Screen name="PDFPreviewScreen" options={{ headerShown: false }} />
     </Stack>
   );
 }

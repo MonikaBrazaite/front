@@ -1,46 +1,78 @@
 import React, { useState, useEffect } from "react";
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-
-interface FavouriteItem {
-  id: string;
-  title: string;
-  description: string;
-}
+import { useRouter } from "expo-router";
 
 const FavouritesScreen = () => {
-  const [favourites, setFavourites] = useState<FavouriteItem[]>([]);
+  const router = useRouter();
+  interface Favourite {
+    PlanId: string;
+    Title: string;
+    Description: string;
+  }
+  
+  const [favourites, setFavourites] = useState<Favourite[]>([]);
 
-  // ✅ Load favorites from AsyncStorage
   useEffect(() => {
     loadFavourites();
   }, []);
 
   const loadFavourites = async () => {
     try {
-      const storedFavourites = await AsyncStorage.getItem("favourites");
-      if (storedFavourites) {
-        setFavourites(JSON.parse(storedFavourites));
+      const token = await AsyncStorage.getItem("userToken");
+      if (!token) {
+        alert("⚠ Please login to view favorites.");
+        router.push("/LoginScreen");
+        return;
+      }
+
+      const response = await fetch('http://192.168.146.209:3000/api/favorites', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setFavourites(data);
+      } else {
+        alert(data.message || "⚠ Failed to load favorites.");
       }
     } catch (error) {
       console.error("Error loading favourites:", error);
+      alert("⚠ An error occurred while loading favorites.");
     }
   };
 
-  // ✅ Save updated favorites to AsyncStorage
-  const saveFavourites = async (newFavourites: FavouriteItem[]) => {
+  const removeFromFavourites = async (planId: string) => {
     try {
-      await AsyncStorage.setItem("favourites", JSON.stringify(newFavourites));
-    } catch (error) {
-      console.error("Error saving favourites:", error);
-    }
-  };
+      const token = await AsyncStorage.getItem("userToken");
+      if (!token) {
+        alert("⚠ Please login to remove from favorites.");
+        router.push("/LoginScreen");
+        return;
+      }
 
-  // ✅ Remove from favorites
-  const removeFromFavourites = (id: string) => {
-    const updatedFavourites = favourites.filter((item) => item.id !== id);
-    setFavourites(updatedFavourites);
-    saveFavourites(updatedFavourites);
+      const response = await fetch(`http://192.168.146.209:3000/api/favorites/${planId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setFavourites(favourites.filter((item) => item.PlanId !== planId));
+        Alert.alert("Removed", "This plan has been removed from your favorites.");
+      } else {
+        alert(data.message || "⚠ Failed to remove from favorites.");
+      }
+    } catch (error) {
+      console.error("Error removing from favorites:", error);
+      alert("⚠ An error occurred while removing from favorites.");
+    }
   };
 
   return (
@@ -52,14 +84,14 @@ const FavouritesScreen = () => {
       ) : (
         <FlatList
           data={favourites}
-          keyExtractor={(item) => item.id}
+          keyExtractor={(item) => item.PlanId}
           renderItem={({ item }) => (
             <View style={styles.card}>
-              <Text style={styles.planName}>{item.title}</Text>
-              <Text style={styles.planDesc}>{item.description}</Text>
+              <Text style={styles.planName}>{item.Title}</Text>
+              <Text style={styles.planDesc}>{item.Description}</Text>
               <TouchableOpacity
                 style={styles.removeButton}
-                onPress={() => removeFromFavourites(item.id)}
+                onPress={() => removeFromFavourites(item.PlanId)}
               >
                 <Text style={styles.removeButtonText}>Remove</Text>
               </TouchableOpacity>
@@ -81,10 +113,10 @@ const styles = StyleSheet.create({
     color: "#E1E6F9",
     fontSize: 24,
     fontWeight: "bold",
-    marginTop: 60, // 👈 Add this line
+    marginTop: 60,
     marginBottom: 20,
     textAlign: "center",
-  },  
+  },
   card: {
     backgroundColor: "#1A1F3D",
     borderRadius: 12,

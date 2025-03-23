@@ -1,6 +1,7 @@
-import React, { useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, StyleSheet } from "react-native";
+import React, { useState, useEffect } from "react";
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert } from "react-native";
 import { useRouter } from "expo-router";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const SignupScreen = () => {
   const router = useRouter();
@@ -8,17 +9,60 @@ const SignupScreen = () => {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
-  const handleSignup = () => {
+  // Token kontrolü: Kullanıcı zaten giriş yapmışsa LoginScreen'e yönlendir
+  useEffect(() => {
+    const checkToken = async () => {
+      try {
+        const token = await AsyncStorage.getItem('userToken');
+        if (token) {
+          // Token varsa, kullanıcıyı LoginScreen'e yönlendir
+          router.replace('/LoginScreen');
+        }
+      } catch (error) {
+        console.error('Error checking token:', error);
+        Alert.alert("Error", "⚠ An error occurred while checking authentication.");
+      }
+    };
+
+    checkToken();
+  }, [router]);
+
+  const handleSignup = async () => {
+    // Alanların dolu olup olmadığını kontrol et
     if (!username || !password || !confirmPassword) {
-      alert("⚠ Please fill all fields.");
+      Alert.alert("Error", "⚠ Please fill all fields.");
       return;
     }
+
+    // Şifrelerin eşleşip eşleşmediğini kontrol et
     if (password !== confirmPassword) {
-      alert("⚠ Passwords do not match.");
+      Alert.alert("Error", "⚠ Passwords do not match.");
       return;
     }
-    alert("✅ Account created successfully!");
-    router.push("/LoginScreen");
+
+    try {
+      const response = await fetch('http://192.168.146.209:3000/api/signup', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ username, password }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        // Token'ı AsyncStorage'a kaydet
+        await AsyncStorage.setItem('userToken', data.token);
+        Alert.alert("Success", "✅ Account created successfully!");
+        router.push("/LoginScreen"); // Kayıt sonrası LoginScreen'e yönlendir
+      } else {
+        Alert.alert("Error", data.message || "⚠ Failed to create account.");
+      }
+    } catch (error) {
+      console.error("Signup error:", error);
+      Alert.alert("Error", "⚠ An error occurred during signup.");
+    }
   };
 
   return (

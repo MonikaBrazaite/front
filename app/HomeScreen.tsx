@@ -16,6 +16,11 @@ const HomeScreen = () => {
       <TouchableOpacity style={styles.button} onPress={() => router.push("/ReviewsScreen")}>
         <Text style={styles.buttonText}>Customer Reviews</Text>
       </TouchableOpacity>
+
+      
+      <TouchableOpacity style={styles.button} onPress={() => router.push("/SurveyScreen")}>
+        <Text style={styles.buttonText}>Start Survey</Text>
+      </TouchableOpacity>
     </View>
   );
 };

@@ -14,51 +14,53 @@ import {
   Keyboard,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useRouter } from "expo-router"; // For navigation
-
-interface Review {
-  id: string;
-  username: string;
-  rating: number;
-  comment: string;
-}
+import { useRouter } from "expo-router";
 
 const ReviewsScreen = () => {
   const router = useRouter();
-  const [reviews, setReviews] = useState<Review[]>([]);
+  const [reviews, setReviews] = useState<{ ReviewId: number; Username: string; Rating: number; Comment: string }[]>([]);
   const [username, setUsername] = useState("");
   const [comment, setComment] = useState("");
-  const [rating, setRating] = useState(0); // Default rating is 0 (unselected)
+  const [rating, setRating] = useState(0);
+  const [selectedPlanId, setSelectedPlanId] = useState<number | null>(null);
+  const [plans, setPlans] = useState<{ PlanId: number; Title: string }[]>([]);
 
   useEffect(() => {
     loadReviews();
+    fetchPlans();
   }, []);
 
-  // Load saved reviews from AsyncStorage
+  const fetchPlans = async () => {
+    try {
+      const response = await fetch('http://192.168.1.100:3000/api/recommendations');
+      const data = await response.json();
+      if (response.ok) {
+        setPlans(data);
+      } else {
+        console.error("Failed to fetch plans:", data.message);
+      }
+    } catch (error) {
+      console.error("Fetch plans error:", error);
+    }
+  };
+
   const loadReviews = async () => {
     try {
-      const savedReviews = await AsyncStorage.getItem("reviews");
-      if (savedReviews) {
-        setReviews(JSON.parse(savedReviews));
+      const response = await fetch('http://192.168.1.100:3000/api/reviews');
+      const data = await response.json();
+      if (response.ok) {
+        setReviews(data);
+      } else {
+        console.error("Failed to load reviews:", data.message);
       }
     } catch (error) {
       console.error("Failed to load reviews:", error);
     }
   };
 
-  // Save reviews to AsyncStorage
-  const saveReviews = async (updatedReviews: Review[]) => {
-    try {
-      await AsyncStorage.setItem("reviews", JSON.stringify(updatedReviews));
-    } catch (error) {
-      console.error("Failed to save reviews:", error);
-    }
-  };
-
-  // Submit a new review
   const submitReview = async () => {
-    if (username.trim() === "" || comment.trim() === "") {
-      Alert.alert("Error", "Username and review cannot be empty.");
+    if (!username || !comment || !rating || !selectedPlanId) {
+      Alert.alert("Error", "Please fill all fields and select a plan.");
       return;
     }
     if (comment.length > 150) {
@@ -66,40 +68,79 @@ const ReviewsScreen = () => {
       return;
     }
 
-    const newReview: Review = {
-      id: Date.now().toString(), // Unique ID
-      username,
-      rating,
-      comment,
-    };
+    try {
+      const token = await AsyncStorage.getItem("userToken");
+      if (!token) {
+        alert("⚠ Please login to submit a review.");
+        router.push("/LoginScreen");
+        return;
+      }
 
-    const updatedReviews = [newReview, ...reviews]; // Add new review to the top
-    setReviews(updatedReviews);
-    saveReviews(updatedReviews); // Persist data
+      const response = await fetch('http://192.168.1.100:3000/api/reviews', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          planId: selectedPlanId,
+          rating,
+          comment,
+        }),
+      });
 
-    // Reset input fields
-    setUsername("");
-    setComment("");
-    setRating(0);
+      const data = await response.json();
+
+      if (response.ok) {
+        Alert.alert("Success", "Review submitted successfully!");
+        setUsername("");
+        setComment("");
+        setRating(0);
+        setSelectedPlanId(null);
+        loadReviews(); // Yorumları yeniden yükle
+      } else {
+        Alert.alert("Error", data.message || "Failed to submit review.");
+      }
+    } catch (error) {
+      console.error("Submit review error:", error);
+      Alert.alert("Error", "An error occurred while submitting the review.");
+    }
   };
 
-  // Delete a review
-  const deleteReview = async (id: string) => {
-    const updatedReviews = reviews.filter((review) => review.id !== id);
-    setReviews(updatedReviews);
-    saveReviews(updatedReviews);
+  const deleteReview = async (reviewId: number) => {
+    // Kullanıcı yalnızca kendi yorumlarını silebilir - backend'de kontrol edilecek
+    try {
+      const token = await AsyncStorage.getItem("userToken");
+      const response = await fetch(`http://192.168.1.100:3000/api/reviews/${reviewId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (response.ok) {
+        setReviews(reviews.filter((review) => review.ReviewId !== reviewId));
+        Alert.alert("Success", "Review deleted successfully!");
+      } else {
+        const data = await response.json();
+        Alert.alert("Error", data.message || "Failed to delete review.");
+      }
+    } catch (error) {
+      console.error("Delete review error:", error);
+      Alert.alert("Error", "An error occurred while deleting the review.");
+    }
   };
 
-  const renderItem = ({ item }: { item: Review }) => (
+  const renderItem = ({ item }: { item: { ReviewId: number; Username: string; Rating: number; Comment: string } }) => (
     <View style={styles.reviewCard}>
       <View style={styles.reviewHeader}>
-        <Text style={styles.username}>{item.username}</Text>
-        <TouchableOpacity onPress={() => deleteReview(item.id)} style={styles.deleteButton}>
+        <Text style={styles.username}>{item.Username}</Text>
+        <TouchableOpacity onPress={() => deleteReview(item.ReviewId)} style={styles.deleteButton}>
           <Text style={styles.deleteButtonText}>❌</Text>
         </TouchableOpacity>
       </View>
-      <Text style={styles.rating}>⭐ {item.rating}/5</Text>
-      <Text style={styles.comment}>"{item.comment}"</Text>
+      <Text style={styles.rating}>⭐ {item.Rating}/5</Text>
+      <Text style={styles.comment}>"{item.Comment}"</Text>
     </View>
   );
 
@@ -111,6 +152,23 @@ const ReviewsScreen = () => {
       <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
         <ScrollView contentContainerStyle={styles.scrollContainer}>
           <Text style={styles.heading}>⭐ Customer Reviews</Text>
+
+          {/* Plan Selection */}
+          <View style={styles.inputContainer}>
+            <Text style={styles.sectionHeading}>Select a Plan to Review</Text>
+            {plans.map((plan) => (
+              <TouchableOpacity
+                key={plan.PlanId}
+                onPress={() => setSelectedPlanId(plan.PlanId)}
+                style={[
+                  styles.planButton,
+                  selectedPlanId === plan.PlanId && styles.planButtonActive,
+                ]}
+              >
+                <Text style={styles.planButtonText}>{plan.Title}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
 
           {/* Review Input Section */}
           <View style={styles.inputContainer}>
@@ -152,16 +210,15 @@ const ReviewsScreen = () => {
           {/* Reviews List */}
           <FlatList
             data={reviews}
-            keyExtractor={(item) => item.id}
+            keyExtractor={(item) => item.ReviewId.toString()}
             renderItem={renderItem}
             contentContainerStyle={styles.list}
           />
 
-          {/* ✅ "Go Back to Home" Button */}
+          {/* Go Back to Home Button */}
           <TouchableOpacity style={styles.goBackButton} onPress={() => router.push("/HomeScreen")}>
             <Text style={styles.goBackButtonText}>⬅ Go Back to Home</Text>
           </TouchableOpacity>
-
         </ScrollView>
       </TouchableWithoutFeedback>
     </KeyboardAvoidingView>
@@ -184,7 +241,13 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     textAlign: "center",
     marginBottom: 20,
-    marginTop: 60, // Push header down
+    marginTop: 60,
+  },
+  sectionHeading: {
+    color: "#E1E6F9",
+    fontSize: 18,
+    fontWeight: "bold",
+    marginBottom: 10,
   },
   list: {
     paddingBottom: 20,
@@ -240,6 +303,19 @@ const styles = StyleSheet.create({
     minHeight: 60,
     textAlignVertical: "top",
   },
+  planButton: {
+    backgroundColor: "#252A49",
+    padding: 10,
+    borderRadius: 8,
+    marginBottom: 10,
+  },
+  planButtonActive: {
+    backgroundColor: "#8A82E2",
+  },
+  planButtonText: {
+    color: "#FFF",
+    fontWeight: "bold",
+  },
   ratingContainer: {
     flexDirection: "row",
     justifyContent: "center",
@@ -250,10 +326,10 @@ const styles = StyleSheet.create({
     marginHorizontal: 5,
   },
   selectedStar: {
-    color: "#FFD700", // Yellow when selected
+    color: "#FFD700",
   },
   unselectedStar: {
-    color: "#888", // Gray when not selected
+    color: "#888",
   },
   submitButton: {
     backgroundColor: "#8A82E2",
