@@ -6,7 +6,6 @@ import {
   FlatList,
   TouchableOpacity,
   Alert,
-  TextInput,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -20,6 +19,7 @@ const popularCombos = [
 
 const ResultsScreen = () => {
   const router = useRouter();
+
   interface Plan {
     PlanId: string;
     Title: string;
@@ -30,76 +30,44 @@ const ResultsScreen = () => {
 
   const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null);
   const [recommendedPlans, setRecommendedPlans] = useState<Plan[]>([]);
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
-  const [selectedTags, setSelectedTags] = useState<string[]>([]);
-  const [sortBy, setSortBy] = useState<string | null>(null);
-  const [minRating, setMinRating] = useState<string>("");
   const [showAllPlans, setShowAllPlans] = useState(false);
-  const [isSurveyCompleted, setIsSurveyCompleted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    checkSurveyStatus();
     fetchRecommendations();
-  }, [selectedCategory, selectedTags, sortBy, minRating, showAllPlans]);
-
-  const checkSurveyStatus = async () => {
-    try {
-      const token = await AsyncStorage.getItem('userToken');
-      if (!token) {
-        Alert.alert("⚠ Please login to view your survey status.");
-        router.push("/LoginScreen");
-        return;
-      }
-
-      const response = await fetch('http://192.168.146.209:3000/api/survey/status', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-
-      const data = await response.json();
-      if (response.ok) {
-        setIsSurveyCompleted(data.isSurveyCompleted);
-      } else {
-        Alert.alert("Error", data.message || "⚠ Failed to check survey status.");
-      }
-    } catch (error) {
-      console.error("Check survey status error:", error);
-      Alert.alert("Error", "⚠ An error occurred while checking survey status.");
-    }
-  };
+  }, [showAllPlans]);
 
   const fetchRecommendations = async () => {
     setLoading(true);
     setError(null);
     try {
       const token = await AsyncStorage.getItem("userToken");
-      console.log("Token retrieved in ResultsScreen:", token);
       if (!token) {
         setError("⚠ Please login to view recommendations.");
         router.push("/LoginScreen");
         return;
       }
 
-      let queryParams = new URLSearchParams();
-      if (selectedCategory) queryParams.append("category", selectedCategory);
-      if (selectedTags.length > 0) queryParams.append("tags", selectedTags.join(","));
-      if (sortBy) queryParams.append("sortBy", sortBy);
-      if (minRating) queryParams.append("minRating", minRating);
+      const queryParams = new URLSearchParams();
       if (showAllPlans) queryParams.append("showAll", "true");
 
-      const response = await fetch(`http://192.168.146.209:3000/api/recommendations?${queryParams}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
+      const response = await fetch(
+        `http://192.168.146.209:3000/api/recommendations?${queryParams}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
 
       const data = await response.json();
-
       if (response.ok) {
         setRecommendedPlans(data);
+      } else if (response.status === 403) {
+        await AsyncStorage.removeItem("userToken");
+        setError("⚠ Your session has expired. Please login again.");
+        router.push("/LoginScreen");
       } else {
         setError(data.message || "⚠ Failed to fetch recommendations.");
       }
@@ -115,22 +83,21 @@ const ResultsScreen = () => {
     try {
       const token = await AsyncStorage.getItem("userToken");
       if (!token) {
-        alert("⚠ Please login to add to favorites.");
+        Alert.alert("⚠ Please login to add to favorites.");
         router.push("/LoginScreen");
         return;
       }
 
-      const response = await fetch('http://192.168.146.209:3000/api/favorites', {
-        method: 'POST',
+      const response = await fetch("http://192.168.146.209:3000/api/favorites", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({ planId: plan.PlanId }),
       });
 
       const data = await response.json();
-
       if (response.ok) {
         Alert.alert("Saved!", "This plan has been added to your favorites.");
       } else {
@@ -147,89 +114,72 @@ const ResultsScreen = () => {
   };
 
   const viewPDFReport = () => {
+    if (!selectedPlan) {
+      Alert.alert("Error", "Please select a plan to view the PDF report.");
+      return;
+    }
     router.push({
       pathname: "/PDFPreviewScreen",
       params: {
-        recommendedPlans: JSON.stringify(recommendedPlans),
+        selectedPlan: JSON.stringify(selectedPlan),
       },
     });
   };
 
-  const finishSurvey = async () => {
-    try {
-      const token = await AsyncStorage.getItem('userToken');
-      if (!token) {
-        Alert.alert("⚠ Please login to finish the survey.");
-        router.push("/LoginScreen");
-        return;
-      }
-
-      const response = await fetch('http://192.168.146.209:3000/api/survey/finish', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
+  const handleGoBackToSurvey = () => {
+    Alert.alert(
+      "Go Back to Survey",
+      "You will be taken back to the survey to view or edit your previous answers. Do you want to continue?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Yes",
+          onPress: () => {
+            router.push("/SurveyScreen");
+          },
         },
-      });
-
-      const data = await response.json();
-      if (response.ok) {
-        setIsSurveyCompleted(true);
-        Alert.alert("Survey Finished", "Your survey has been completed. You can now view your recommendations.");
-        router.push("/HomeScreen");
-      } else {
-        Alert.alert("Error", data.message || "⚠ Failed to finish survey.");
-      }
-    } catch (error) {
-      console.error("Finish survey error:", error);
-      Alert.alert("Error", "⚠ An error occurred while finishing the survey.");
-    }
+      ]
+    );
   };
 
-  const filteredPlans = recommendedPlans;
-  const sortedPlans = [...filteredPlans].sort((a, b) => {
-    if (sortBy === "rating") {
-      return b.Rating - a.Rating;
-    } else if (sortBy === "compatibility") {
-      return (b.VoiceAssistants ? b.VoiceAssistants.split(',').length : 0) - (a.VoiceAssistants ? a.VoiceAssistants.split(',').length : 0);
+  const renderPlanItem = ({ item }: { item: Plan }) => {
+    if (!item || !item.PlanId) {
+      console.warn("Invalid plan item:", item);
+      return null;
     }
-    return 0;
-  });
 
-  const renderPlanItem = ({ item }: { item: Plan }) => (
-    <View style={styles.planContainer}>
-      <Text style={styles.planTitle}>{item.Title}</Text>
-      <Text style={styles.planDescription}>{item.Description}</Text>
-
-      <Text style={styles.rating}>⭐ {item.Rating.toFixed(1)} / 5</Text>
-
-      {item.VoiceAssistants && (
-        <Text style={styles.voiceAssistants}>
-          🗣️ Works with: {item.VoiceAssistants}
-        </Text>
-      )}
-
-      <TouchableOpacity
-        style={[
-          styles.selectPlanButton,
-          selectedPlan?.PlanId === item.PlanId && styles.selectedPlanButton,
-        ]}
-        onPress={() => selectPlan(item)}
-      >
-        <Text style={styles.selectPlanButtonText}>
-          {selectedPlan?.PlanId === item.PlanId
-            ? "Plan Selected ✅"
-            : "Select This Plan"}
-        </Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity
-        style={styles.favButton}
-        onPress={() => addToFavourites(item)}
-      >
-        <Text style={styles.favButtonText}>Save to Favorites ⭐</Text>
-      </TouchableOpacity>
-    </View>
-  );
+    return (
+      <View style={styles.planContainer}>
+        <Text style={styles.planTitle}>{item.Title}</Text>
+        <Text style={styles.planDescription}>{item.Description}</Text>
+        <Text style={styles.rating}>⭐ {item.Rating.toFixed(1)} / 5</Text>
+        {item.VoiceAssistants && (
+          <Text style={styles.voiceAssistants}>
+            🗣️ Works with: {item.VoiceAssistants}
+          </Text>
+        )}
+        <TouchableOpacity
+          style={[
+            styles.selectPlanButton,
+            selectedPlan?.PlanId === item.PlanId && styles.selectedPlanButton,
+          ]}
+          onPress={() => selectPlan(item)}
+        >
+          <Text style={styles.selectPlanButtonText}>
+            {selectedPlan?.PlanId === item.PlanId
+              ? "Plan Selected ✅"
+              : "Select This Plan"}
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.favButton}
+          onPress={() => addToFavourites(item)}
+        >
+          <Text style={styles.favButtonText}>Save to Favorites ⭐</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  };
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -241,14 +191,12 @@ const ResultsScreen = () => {
             {loading && <Text style={styles.loadingText}>Loading recommendations...</Text>}
             {error && <Text style={styles.errorText}>{error}</Text>}
 
-            {!isSurveyCompleted && (
-              <TouchableOpacity
-                onPress={() => router.push("/SurveyScreen")}
-                style={styles.goBackButton}
-              >
-                <Text style={styles.goBackButtonText}>Go Back to Survey</Text>
-              </TouchableOpacity>
-            )}
+            <TouchableOpacity
+              onPress={handleGoBackToSurvey}
+              style={styles.goBackButton}
+            >
+              <Text style={styles.goBackButtonText}>Go Back to Survey</Text>
+            </TouchableOpacity>
 
             <TouchableOpacity
               onPress={() => setShowAllPlans(!showAllPlans)}
@@ -259,36 +207,6 @@ const ResultsScreen = () => {
               </Text>
             </TouchableOpacity>
 
-            <View style={styles.filterRow}>
-              <Text style={{ color: "#E1E6F9", fontWeight: "bold", marginRight: 8 }}>Sort by:</Text>
-              {["rating", "compatibility"].map((key) => (
-                <TouchableOpacity
-                  key={key}
-                  onPress={() => setSortBy(sortBy === key ? null : key)}
-                  style={[
-                    styles.filterButton,
-                    sortBy === key && styles.filterButtonActive,
-                  ]}
-                >
-                  <Text style={styles.filterButtonText}>
-                    {key === "rating" ? "⭐ Rating" : "🎙 Voice Support"}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            <View style={styles.filterRow}>
-              <Text style={{ color: "#E1E6F9", fontWeight: "bold", marginRight: 8 }}>Min Rating:</Text>
-              <TextInput
-                style={styles.ratingInput}
-                placeholder="e.g., 4.0"
-                placeholderTextColor="#AEB4E8"
-                value={minRating}
-                onChangeText={setMinRating}
-                keyboardType="numeric"
-              />
-            </View>
-
             <Text style={styles.subheading}>🔥 Popular Picks</Text>
             <View style={styles.popularContainer}>
               {popularCombos.map((combo, index) => (
@@ -298,67 +216,21 @@ const ResultsScreen = () => {
               ))}
             </View>
 
-            <View style={styles.filterRow}>
-              {["Security", "Energy", "Entertainment", "Appliances", "Lighting", "Health"].map((cat) => (
-                <TouchableOpacity
-                  key={cat}
-                  onPress={() =>
-                    setSelectedCategory(cat === selectedCategory ? null : cat)
-                  }
-                  style={[
-                    styles.filterButton,
-                    selectedCategory === cat && styles.filterButtonActive,
-                  ]}
-                >
-                  <Text style={styles.filterButtonText}>{cat}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            <View style={styles.filterRow}>
-              {[
-                "Voice Compatible",
-                "Eco-friendly",
-                "Outdoor",
-                "Streaming",
-                "Cooking",
-                "Automation",
-                "Wearable",
-                "Daily Tracking",
-              ].map((tag) => {
-                const selected = selectedTags.includes(tag);
-                return (
-                  <TouchableOpacity
-                    key={tag}
-                    onPress={() =>
-                      setSelectedTags((prev) =>
-                        selected
-                          ? prev.filter((t) => t !== tag)
-                          : [...prev, tag]
-                      )
-                    }
-                    style={[
-                      styles.tagButton,
-                      selected && styles.tagButtonActive,
-                    ]}
-                  >
-                    <Text style={styles.tagButtonText}>{tag}</Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-
-            {sortedPlans.length === 0 && !loading && !error && (
-              <Text style={styles.emptyText}>No recommendations available.</Text>
+            {recommendedPlans.length === 0 && !loading && !error && (
+              <Text style={styles.emptyText}>
+                {showAllPlans
+                  ? "No plans available."
+                  : "No recommendations match your survey responses. Try showing all plans or retaking the survey."}
+              </Text>
             )}
           </>
         }
-        data={sortedPlans}
+        data={recommendedPlans}
         renderItem={renderPlanItem}
         keyExtractor={(item) => item.PlanId}
         ListFooterComponent={
           <>
-            {sortedPlans.length > 0 && (
+            {recommendedPlans.length > 0 && (
               <TouchableOpacity
                 style={styles.authButton}
                 onPress={viewPDFReport}
@@ -366,12 +238,12 @@ const ResultsScreen = () => {
                 <Text style={styles.authButtonText}>📄 View PDF Report</Text>
               </TouchableOpacity>
             )}
-            {!isSurveyCompleted && (
+            {recommendedPlans.length === 0 && !showAllPlans && !loading && !error && (
               <TouchableOpacity
-                style={styles.finishButton}
-                onPress={finishSurvey}
+                style={styles.goBackButton}
+                onPress={handleGoBackToSurvey}
               >
-                <Text style={styles.finishButtonText}>✅ Finish Survey</Text>
+                <Text style={styles.goBackButtonText}>Retake Survey 📋</Text>
               </TouchableOpacity>
             )}
           </>
@@ -432,141 +304,85 @@ const styles = StyleSheet.create({
   },
   planTitle: { fontSize: 20, color: "#C0C6FF", fontWeight: "bold" },
   planDescription: { color: "#AEB4E8", marginBottom: 6 },
-  rating: { color: "#FFD700", fontSize: 14, fontWeight: "bold", marginBottom: 4 },
-  voiceAssistants: {
-    color: "#C3C8F2",
-    fontSize: 14,
-    fontStyle: "italic",
-    marginBottom: 10,
-  },
+  rating: { color: "#FFD700", fontSize: 14 },
+  voiceAssistants: { color: "#AEB4E8", fontSize: 14 },
   selectPlanButton: {
     backgroundColor: "#8A82E2",
     padding: 10,
-    borderRadius: 10,
-    marginTop: 5,
+    borderRadius: 8,
     alignItems: "center",
+    marginTop: 10,
   },
   selectedPlanButton: {
     backgroundColor: "#6B8BFF",
   },
   selectPlanButtonText: {
-    color: "#FFFFFF",
+    color: "#FFF",
+    fontSize: 14,
     fontWeight: "bold",
-    textAlign: "center",
   },
   favButton: {
-    backgroundColor: "#FFD700",
+    backgroundColor: "#3A437E",
     padding: 10,
-    borderRadius: 10,
-    marginTop: 10,
+    borderRadius: 8,
     alignItems: "center",
+    marginTop: 10,
   },
   favButtonText: {
-    color: "#000",
-    fontWeight: "bold",
-  },
-  authButton: {
-    backgroundColor: "#8A82E2",
-    padding: 15,
-    marginTop: 10,
-    borderRadius: 15,
-    alignItems: "center",
-  },
-  authButtonText: {
-    color: "#fff",
-    fontSize: 18,
-    fontWeight: "bold",
-  },
-  finishButton: {
-    backgroundColor: "#FF007F",
-    padding: 15,
-    marginTop: 10,
-    borderRadius: 15,
-    alignItems: "center",
-  },
-  finishButtonText: {
-    color: "#fff",
-    fontSize: 18,
-    fontWeight: "bold",
-  },
-  filterRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-    marginBottom: 15,
-    alignItems: "center",
-  },
-  filterButton: {
-    backgroundColor: "#1A1F3D",
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    borderRadius: 20,
-  },
-  filterButtonActive: {
-    backgroundColor: "#6B8BFF",
-  },
-  filterButtonText: {
-    color: "#fff",
-    fontWeight: "bold",
-  },
-  ratingInput: {
-    backgroundColor: "#1A1F3D",
     color: "#FFF",
-    padding: 8,
-    borderRadius: 10,
-    width: 100,
-  },
-  tagButton: {
-    backgroundColor: "#1A1F3D",
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 18,
-  },
-  tagButtonActive: {
-    backgroundColor: "#FFD700",
-  },
-  tagButtonText: {
-    color: "#fff",
-    fontWeight: "600",
+    fontSize: 14,
+    fontWeight: "bold",
   },
   subheading: {
-    fontSize: 20,
-    color: "#FFD700",
+    fontSize: 18,
+    color: "#C0C6FF",
     fontWeight: "bold",
     marginBottom: 10,
   },
   popularContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
     marginBottom: 20,
-    gap: 10,
   },
   popularCard: {
     backgroundColor: "#1A1F3D",
-    padding: 12,
-    borderRadius: 10,
-    shadowColor: "#FFD700",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.5,
-    shadowRadius: 5,
+    padding: 10,
+    borderRadius: 8,
+    marginBottom: 10,
+    width: "48%",
   },
   popularText: {
-    color: "#FFF",
-    fontWeight: "600",
+    color: "#AEB4E8",
+    fontSize: 14,
+    textAlign: "center",
+  },
+  emptyText: {
+    color: "#AEB4E8",
     fontSize: 16,
+    textAlign: "center",
+    marginVertical: 20,
+  },
+  authButton: {
+    backgroundColor: "#8A82E2",
+    padding: 15,
+    borderRadius: 10,
+    alignItems: "center",
+    marginVertical: 20,
+  },
+  authButtonText: {
+    color: "#FFF",
+    fontSize: 16,
+    fontWeight: "bold",
   },
   loadingText: {
-    color: "#C0C6FF",
+    color: "#AEB4E8",
     fontSize: 16,
     textAlign: "center",
     marginVertical: 20,
   },
   errorText: {
-    color: "#FF5555",
-    fontSize: 16,
-    textAlign: "center",
-    marginVertical: 20,
-  },
-  emptyText: {
-    color: "#AEB4E8",
+    color: "#E05B5B",
     fontSize: 16,
     textAlign: "center",
     marginVertical: 20,

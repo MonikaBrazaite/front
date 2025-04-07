@@ -9,21 +9,19 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
-  ScrollView,
-  TouchableWithoutFeedback,
-  Keyboard,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 
 const ReviewsScreen = () => {
   const router = useRouter();
-  const [reviews, setReviews] = useState<{ ReviewId: number; Username: string; Rating: number; Comment: string }[]>([]);
-  const [username, setUsername] = useState("");
+  const [reviews, setReviews] = useState<
+    { ReviewId: number; Username: string; Rating: number; Comment: string }[]
+  >([]);
   const [comment, setComment] = useState("");
   const [rating, setRating] = useState(0);
-  const [selectedPlanId, setSelectedPlanId] = useState<number | null>(null);
-  const [plans, setPlans] = useState<{ PlanId: number; Title: string }[]>([]);
+  const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
+  const [plans, setPlans] = useState<{ PlanId: string; Title: string }[]>([]);
 
   useEffect(() => {
     loadReviews();
@@ -32,34 +30,71 @@ const ReviewsScreen = () => {
 
   const fetchPlans = async () => {
     try {
-      const response = await fetch('http://192.168.1.100:3000/api/recommendations');
+      const token = await AsyncStorage.getItem("userToken");
+      if (!token) {
+        console.error("No token found, redirecting to login");
+        router.push("/LoginScreen");
+        return;
+      }
+
+      const response = await fetch(
+        "http://192.168.146.209:3000/api/recommendations?showAll=true",
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
       const data = await response.json();
       if (response.ok) {
         setPlans(data);
+      } else if (response.status === 403) {
+        await AsyncStorage.removeItem("userToken");
+        console.error("Session expired, redirecting to login");
+        router.push("/LoginScreen");
       } else {
         console.error("Failed to fetch plans:", data.message);
+        Alert.alert("Error", data.message || "Failed to fetch plans.");
       }
     } catch (error) {
       console.error("Fetch plans error:", error);
+      Alert.alert("Error", "An error occurred while fetching plans.");
     }
   };
 
   const loadReviews = async () => {
     try {
-      const response = await fetch('http://192.168.1.100:3000/api/reviews');
+      const token = await AsyncStorage.getItem("userToken");
+      if (!token) {
+        console.error("No token found, redirecting to login");
+        router.push("/LoginScreen");
+        return;
+      }
+
+      const response = await fetch("http://192.168.146.209:3000/api/reviews", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
       const data = await response.json();
       if (response.ok) {
         setReviews(data);
+      } else if (response.status === 403) {
+        await AsyncStorage.removeItem("userToken");
+        console.error("Session expired, redirecting to login");
+        router.push("/LoginScreen");
       } else {
         console.error("Failed to load reviews:", data.message);
+        Alert.alert("Error", data.message || "Failed to load reviews.");
       }
     } catch (error) {
       console.error("Failed to load reviews:", error);
+      Alert.alert("Error", "An error occurred while loading reviews.");
     }
   };
 
   const submitReview = async () => {
-    if (!username || !comment || !rating || !selectedPlanId) {
+    if (!comment || !rating || !selectedPlanId) {
       Alert.alert("Error", "Please fill all fields and select a plan.");
       return;
     }
@@ -71,16 +106,16 @@ const ReviewsScreen = () => {
     try {
       const token = await AsyncStorage.getItem("userToken");
       if (!token) {
-        alert("⚠ Please login to submit a review.");
+        Alert.alert("⚠ Please login to submit a review.");
         router.push("/LoginScreen");
         return;
       }
 
-      const response = await fetch('http://192.168.1.100:3000/api/reviews', {
-        method: 'POST',
+      const response = await fetch("http://192.168.146.209:3000/api/reviews", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           planId: selectedPlanId,
@@ -93,11 +128,14 @@ const ReviewsScreen = () => {
 
       if (response.ok) {
         Alert.alert("Success", "Review submitted successfully!");
-        setUsername("");
         setComment("");
         setRating(0);
         setSelectedPlanId(null);
-        loadReviews(); // Yorumları yeniden yükle
+        loadReviews();
+      } else if (response.status === 403) {
+        await AsyncStorage.removeItem("userToken");
+        Alert.alert("Error", "Your session has expired. Please login again.");
+        router.push("/LoginScreen");
       } else {
         Alert.alert("Error", data.message || "Failed to submit review.");
       }
@@ -108,21 +146,34 @@ const ReviewsScreen = () => {
   };
 
   const deleteReview = async (reviewId: number) => {
-    // Kullanıcı yalnızca kendi yorumlarını silebilir - backend'de kontrol edilecek
     try {
       const token = await AsyncStorage.getItem("userToken");
-      const response = await fetch(`http://192.168.1.100:3000/api/reviews/${reviewId}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
+      if (!token) {
+        Alert.alert("⚠ Please login to delete a review.");
+        router.push("/LoginScreen");
+        return;
+      }
+
+      const response = await fetch(
+        `http://192.168.146.209:3000/api/reviews/${reviewId}`,
+        {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      const data = await response.json();
 
       if (response.ok) {
         setReviews(reviews.filter((review) => review.ReviewId !== reviewId));
         Alert.alert("Success", "Review deleted successfully!");
+      } else if (response.status === 403) {
+        await AsyncStorage.removeItem("userToken");
+        Alert.alert("Error", "Your session has expired. Please login again.");
+        router.push("/LoginScreen");
       } else {
-        const data = await response.json();
         Alert.alert("Error", data.message || "Failed to delete review.");
       }
     } catch (error) {
@@ -131,96 +182,98 @@ const ReviewsScreen = () => {
     }
   };
 
-  const renderItem = ({ item }: { item: { ReviewId: number; Username: string; Rating: number; Comment: string } }) => (
+  const renderReview = ({
+    item,
+  }: {
+    item: { ReviewId: number; Username: string; Rating: number; Comment: string };
+  }) => (
     <View style={styles.reviewCard}>
-      <View style={styles.reviewHeader}>
-        <Text style={styles.username}>{item.Username}</Text>
-        <TouchableOpacity onPress={() => deleteReview(item.ReviewId)} style={styles.deleteButton}>
-          <Text style={styles.deleteButtonText}>❌</Text>
-        </TouchableOpacity>
-      </View>
-      <Text style={styles.rating}>⭐ {item.Rating}/5</Text>
-      <Text style={styles.comment}>"{item.Comment}"</Text>
+      <Text style={styles.username}>{item.Username}</Text>
+      <Text style={styles.rating}>⭐ {item.Rating} / 5</Text>
+      <Text style={styles.comment}>{item.Comment}</Text>
+      <TouchableOpacity
+        style={styles.deleteButton}
+        onPress={() => deleteReview(item.ReviewId)}
+      >
+        <Text style={styles.deleteButtonText}>Delete</Text>
+      </TouchableOpacity>
     </View>
+  );
+
+  const renderPlanOption = ({
+    item,
+  }: {
+    item: { PlanId: string; Title: string };
+  }) => (
+    <TouchableOpacity
+      style={[
+        styles.planOption,
+        selectedPlanId === item.PlanId && styles.selectedPlanOption,
+      ]}
+      onPress={() => setSelectedPlanId(item.PlanId)}
+    >
+      <Text style={styles.planOptionText}>{item.Title}</Text>
+    </TouchableOpacity>
   );
 
   return (
     <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
       style={styles.container}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
-      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-        <ScrollView contentContainerStyle={styles.scrollContainer}>
-          <Text style={styles.heading}>⭐ Customer Reviews</Text>
+      <Text style={styles.heading}>Reviews</Text>
 
-          {/* Plan Selection */}
-          <View style={styles.inputContainer}>
-            <Text style={styles.sectionHeading}>Select a Plan to Review</Text>
-            {plans.map((plan) => (
-              <TouchableOpacity
-                key={plan.PlanId}
-                onPress={() => setSelectedPlanId(plan.PlanId)}
-                style={[
-                  styles.planButton,
-                  selectedPlanId === plan.PlanId && styles.planButtonActive,
-                ]}
-              >
-                <Text style={styles.planButtonText}>{plan.Title}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
+      <Text style={styles.subheading}>Select a Plan to Review</Text>
+      <FlatList
+        data={plans}
+        renderItem={renderPlanOption}
+        keyExtractor={(item) => item.PlanId}
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.planList}
+      />
 
-          {/* Review Input Section */}
-          <View style={styles.inputContainer}>
-            <TextInput
-              style={styles.input}
-              placeholder="Your Name"
-              placeholderTextColor="#C3C8F2"
-              value={username}
-              onChangeText={setUsername}
-              returnKeyType="done"
-            />
-            <TextInput
-              style={[styles.input, styles.reviewInput]}
-              placeholder="Write your review..."
-              placeholderTextColor="#C3C8F2"
-              value={comment}
-              onChangeText={setComment}
-              maxLength={150}
-              returnKeyType="done"
-              multiline
-            />
-
-            {/* Star Rating Selection */}
-            <View style={styles.ratingContainer}>
-              {[1, 2, 3, 4, 5].map((num) => (
-                <TouchableOpacity key={num} onPress={() => setRating(num)}>
-                  <Text style={[styles.star, rating >= num ? styles.selectedStar : styles.unselectedStar]}>
-                    ⭐
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            <TouchableOpacity style={styles.submitButton} onPress={submitReview}>
-              <Text style={styles.submitButtonText}>Submit Review</Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Reviews List */}
-          <FlatList
-            data={reviews}
-            keyExtractor={(item) => item.ReviewId.toString()}
-            renderItem={renderItem}
-            contentContainerStyle={styles.list}
-          />
-
-          {/* Go Back to Home Button */}
-          <TouchableOpacity style={styles.goBackButton} onPress={() => router.push("/HomeScreen")}>
-            <Text style={styles.goBackButtonText}>⬅ Go Back to Home</Text>
+      <Text style={styles.subheading}>Rate the Plan (1-5)</Text>
+      <View style={styles.ratingContainer}>
+        {[1, 2, 3, 4, 5].map((star) => (
+          <TouchableOpacity
+            key={star}
+            onPress={() => setRating(star)}
+            style={styles.starButton}
+          >
+            <Text style={rating >= star ? styles.starFilled : styles.starEmpty}>
+              ⭐
+            </Text>
           </TouchableOpacity>
-        </ScrollView>
-      </TouchableWithoutFeedback>
+        ))}
+      </View>
+
+      <Text style={styles.subheading}>Write Your Review</Text>
+      <TextInput
+        style={styles.input}
+        placeholder="Write your review here (max 150 characters)"
+        placeholderTextColor="#AEB4E8"
+        value={comment}
+        onChangeText={setComment}
+        maxLength={150}
+        multiline
+      />
+
+      <TouchableOpacity style={styles.submitButton} onPress={submitReview}>
+        <Text style={styles.submitButtonText}>Submit Review</Text>
+      </TouchableOpacity>
+
+      <Text style={styles.subheading}>All Reviews</Text>
+      {reviews.length === 0 ? (
+        <Text style={styles.noReviewsText}>No reviews yet.</Text>
+      ) : (
+        <FlatList
+          data={reviews}
+          renderItem={renderReview}
+          keyExtractor={(item) => item.ReviewId.toString()}
+          style={styles.reviewsList}
+        />
+      )}
     </KeyboardAvoidingView>
   );
 };
@@ -231,128 +284,114 @@ const styles = StyleSheet.create({
     backgroundColor: "#0A0F24",
     padding: 20,
   },
-  scrollContainer: {
-    flexGrow: 1,
-    paddingBottom: 20,
-  },
   heading: {
-    color: "#E1E6F9",
     fontSize: 24,
+    color: "#E1E6F9",
     fontWeight: "bold",
     textAlign: "center",
+    marginTop: 40,
     marginBottom: 20,
-    marginTop: 60,
   },
-  sectionHeading: {
+  subheading: {
+    fontSize: 18,
+    color: "#C0C6FF",
+    fontWeight: "bold",
+    marginBottom: 10,
+  },
+  planList: {
+    marginBottom: 20,
+  },
+  planOption: {
+    backgroundColor: "#1A1F3D",
+    padding: 10,
+    borderRadius: 8,
+    marginRight: 10,
+  },
+  selectedPlanOption: {
+    backgroundColor: "#6B8BFF",
+  },
+  planOptionText: {
     color: "#E1E6F9",
-    fontSize: 18,
-    fontWeight: "bold",
-    marginBottom: 10,
-  },
-  list: {
-    paddingBottom: 20,
-  },
-  reviewCard: {
-    backgroundColor: "#1A1F3D",
-    borderRadius: 12,
-    padding: 15,
-    marginBottom: 15,
-  },
-  reviewHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  username: {
-    color: "#FFF",
-    fontSize: 18,
-    fontWeight: "bold",
-  },
-  deleteButton: {
-    padding: 5,
-  },
-  deleteButtonText: {
-    color: "#E05B5B",
-    fontSize: 20,
-  },
-  rating: {
-    color: "#FFD700",
-    fontSize: 16,
-    fontWeight: "bold",
-  },
-  comment: {
-    color: "#C3C8F2",
     fontSize: 14,
-    fontStyle: "italic",
-    marginTop: 5,
-  },
-  inputContainer: {
-    marginBottom: 20,
-    padding: 15,
-    backgroundColor: "#1A1F3D",
-    borderRadius: 12,
-  },
-  input: {
-    backgroundColor: "#252A49",
-    color: "#FFF",
-    padding: 10,
-    borderRadius: 8,
-    marginBottom: 10,
-  },
-  reviewInput: {
-    minHeight: 60,
-    textAlignVertical: "top",
-  },
-  planButton: {
-    backgroundColor: "#252A49",
-    padding: 10,
-    borderRadius: 8,
-    marginBottom: 10,
-  },
-  planButtonActive: {
-    backgroundColor: "#8A82E2",
-  },
-  planButtonText: {
-    color: "#FFF",
-    fontWeight: "bold",
   },
   ratingContainer: {
     flexDirection: "row",
     justifyContent: "center",
-    marginBottom: 10,
+    marginBottom: 20,
   },
-  star: {
-    fontSize: 30,
+  starButton: {
     marginHorizontal: 5,
   },
-  selectedStar: {
+  starFilled: {
+    fontSize: 24,
     color: "#FFD700",
   },
-  unselectedStar: {
-    color: "#888",
+  starEmpty: {
+    fontSize: 24,
+    color: "#AEB4E8",
+  },
+  input: {
+    backgroundColor: "#1A1F3D",
+    color: "#E1E6F9",
+    padding: 15,
+    borderRadius: 10,
+    marginBottom: 20,
+    fontSize: 16,
+    minHeight: 60,
+    textAlignVertical: "top",
   },
   submitButton: {
     backgroundColor: "#8A82E2",
-    padding: 12,
-    borderRadius: 8,
+    padding: 15,
+    borderRadius: 10,
     alignItems: "center",
+    marginBottom: 20,
   },
   submitButtonText: {
     color: "#FFF",
     fontSize: 16,
     fontWeight: "bold",
   },
-  goBackButton: {
-    backgroundColor: "#3A437E",
-    padding: 12,
-    borderRadius: 10,
-    alignItems: "center",
-    marginTop: 20,
+  reviewsList: {
+    flex: 1,
   },
-  goBackButtonText: {
-    color: "#FFFFFF",
+  reviewCard: {
+    backgroundColor: "#1A1F3D",
+    padding: 15,
+    borderRadius: 10,
+    marginBottom: 10,
+  },
+  username: {
     fontSize: 16,
+    color: "#E1E6F9",
     fontWeight: "bold",
+  },
+  rating: {
+    fontSize: 14,
+    color: "#FFD700",
+    marginVertical: 5,
+  },
+  comment: {
+    fontSize: 14,
+    color: "#AEB4E8",
+  },
+  deleteButton: {
+    backgroundColor: "#E05B5B",
+    padding: 10,
+    borderRadius: 8,
+    alignItems: "center",
+    marginTop: 10,
+  },
+  deleteButtonText: {
+    color: "#FFF",
+    fontSize: 14,
+    fontWeight: "bold",
+  },
+  noReviewsText: {
+    color: "#AEB4E8",
+    fontSize: 16,
+    textAlign: "center",
+    marginVertical: 20,
   },
 });
 

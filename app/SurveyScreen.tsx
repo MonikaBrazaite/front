@@ -7,21 +7,22 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 const SurveyScreen = () => {
   const router = useRouter();
 
+  // Sorular ve seçenekler optimize edildi
   const questions = [
-    { question: "What is your primary smart home need?", options: ["Security and Surveillance", "Energy Efficiency", "Comfort and Automation", "Entertainment and Multimedia", "Health and Wellness", "Lighting Control"] },
-    { question: "Do you use a voice assistant?", options: ["Yes, Alexa", "Yes, Google Assistant", "Yes, Siri", "No, I don’t use any"] },
-    { question: "What is your budget for smart home solutions?", options: ["$0 - $50", "$50 - $250", "$250 - $500", "$500+"] },
+    { question: "What is your primary smart home need?", options: ["Security", "Energy Saving", "Comfort and Automation", "Entertainment", "Health and Wellness", "Lighting"] },
+    { question: "Do you use a voice assistant?", options: ["Yes, Amazon Alexa", "Yes, Google Assistant", "Yes, Apple Siri", "No, I don’t use any"] },
+    { question: "What is your budget for smart home solutions?", options: ["$0 - $100", "$100 - $300", "$300 - $600", "$600+"] }, // Bütçe aralıkları SmartHomePlans'e göre optimize edildi
     { question: "What type of home do you live in?", options: ["Apartment", "Detached house", "Villa", "Dormitory/Rented room", "Other"] },
-    { question: "Which devices do you already use?", options: ["Smart speakers (Alexa, Google Home, Siri)", "Smart TV", "Smart plugs and switches", "Smart security systems", "None"] },
-    { question: "What type of connectivity do you prefer?", options: ["Wi-Fi", "Bluetooth", "Zigbee/Z-Wave", "Ethernet (Wired)", "I’m not sure"] },
+    { question: "Which smart devices do you already use?", options: ["Smart speakers", "Smart TV", "Smart plugs", "Smart security systems", "None"] }, // SmartHomePlans Tags ile uyumlu
+    { question: "What type of connectivity do you prefer?", options: ["Wi-Fi", "Bluetooth", "Zigbee", "Ethernet (Wired)", "I’m not sure"] }, // SmartHomePlans Connectivity ile uyumlu
     { question: "How do you prefer to control your smart home devices?", options: ["Mobile app", "Voice assistant", "Remote control", "Manual switches"] },
     { question: "Which devices do you want to use to manage your smart home system?", options: ["Smartphone", "Tablet", "Computer", "Smartwatch"] },
-    { question: "What is the most important factor for you when choosing a smart home product?", options: ["Ease of use", "Wide device compatibility", "Energy efficiency", "Price-performance balance"] },
-    { question: "Which brands do you currently own in your home?", options: ["Apple", "Samsung", "Xiaomi", "Philips Hue", "Other"] },
+    { question: "What is the most important factor for you when choosing a smart home product?", options: ["Ease of use", "Wide device compatibility", "Energy saving", "Price-performance balance"] }, // Energy saving eklendi
+    { question: "Which brands do you currently own in your home?", options: ["Apple", "Samsung", "Xiaomi", "Philips Hue", "Other"] }, // SmartHomePlans CompatibleBrands ile uyumlu
     { question: "How often do you plan to use smart home devices?", options: ["Daily", "Weekly", "Occasionally", "Rarely"] },
     { question: "Do you prefer eco-friendly smart home solutions?", options: ["Yes, very important", "Somewhat important", "Not important"] },
     { question: "Are you interested in outdoor smart home solutions (e.g., smart garden, outdoor lighting)?", options: ["Yes", "No", "Maybe"] },
-    { question: "Which entertainment features are you interested in?", options: ["Smart TV and streaming", "Smart speakers for music", "Gaming integration", "None"] },
+    { question: "Which entertainment features are you interested in?", options: ["Smart TV and streaming", "Smart speakers for music", "Gaming integration", "None"] }, // SmartHomePlans Tags ile uyumlu
     { question: "How many people live in your household?", options: ["1", "2-3", "4-5", "6 or more"] },
   ];
 
@@ -179,6 +180,14 @@ const SurveyScreen = () => {
       const data = await response.json();
 
       if (response.ok) {
+        // Anket tamamlandıktan sonra durumu güncelle
+        await fetch('http://192.168.146.209:3000/api/survey/finish', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+        });
+        setIsSurveyCompleted(true);
         Alert.alert("✅ Survey submitted successfully!");
         router.push('/ResultsScreen');
       } else {
